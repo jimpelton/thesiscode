@@ -1,8 +1,7 @@
 
 from typing import List
 import numpy as np
-from block import Block
-
+from volume import Volume
 
 class IndexFile:
     def __init__(self, from_file=None, **kwargs):
@@ -52,23 +51,23 @@ class IndexFile:
 
     def writeOut(self, file_name):
         # write header
-        
-        #write blocks body
+        # write blocks
 
     def open_from(from_file):
         pass
 
 
-
-class FileBlock(Block):
+class FileBlock:
     def __init__(self, **kwargs):
-        super(Block, self).__init__(kwargs['dims'], kwargs['origin'], kwargs['voxdims'])
-
+        self.dims = kwargs['dims']
+        self.origin = kwargs['origin']
+        self.vox_dims = kwargs['vox_dims']
         self.index = kwargs['index']
         self.ijk = kwargs['ijk']
         self.offset = kwargs['offset']
 
-def create_file_blocks(nblocks, volume: Block) -> List[FileBlock]:
+
+def create_file_blocks(nblocks, volume: volume.Volume) -> List[FileBlock]:
     blk_dims_world = np.divide(volume.world_dims, nblocks)
     blk_dims_vox = np.divide(volume.voxdims, nblocks)
     blk_dims_prod = np.prod(blk_dims_vox)
@@ -77,7 +76,7 @@ def create_file_blocks(nblocks, volume: Block) -> List[FileBlock]:
     for k in range(nblocks[2]):
         for j in range(nblocks[1]):
             for i in range(nblocks[0]):
-                world_loc = (volume.world_dims * [i, j, k]) - (volume.worl_dims * 0.5)
+                world_loc = (volume.world_dims * [i, j, k]) - (volume.world_dims * 0.5)
                 origin = world_loc + (world_loc + blk_dims_world) * 0.5
                 start_vox = [i, j, k] * blk_dims_prod
 

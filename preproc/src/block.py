@@ -9,6 +9,3 @@ class Block:
         self.voxdims = voxdims
         self.rel = 0
 
-
-def create_blocks(relevancies):
-

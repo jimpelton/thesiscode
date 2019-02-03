@@ -1,5 +1,3 @@
-#!/bin/python
-
 import time
 import argparse
 import sys
@@ -9,6 +7,7 @@ import numba
 from numba import jit, njit, config, threading_layer
 
 import indexfile
+import volume
 
 #config.THREADING_LAYER = 'tbb'
 
@@ -31,7 +30,7 @@ def parse_args(args):
 
 
 @njit(fastmath=True)
-def run_volume_analysis(fd):
+def volume_analysis_jit(fd):
     mn = np.iinfo(fd.dtype).max
     mx = -np.iinfo(fd.dtype).min
     acc = numba.float64(0.0)
@@ -48,7 +47,7 @@ def run_volume_analysis(fd):
     return mn, mx, acc
 
 @njit(fastmath=True, parallel=True)
-def run_block_analysis(fd, xp, yp,
+def block_analysis_jit(fd, xp, yp,
                      vmin: np.float64, vmax: np.float64,
                      vdims: np.ndarray, bdims: np.ndarray,
                      bcount: np.ndarray):
@@ -99,17 +98,30 @@ def run_block_analysis(fd, xp, yp,
 
 def run_volume(fd):
     start = time.time()
-    vol_min, vol_max, vol_tot = run_volume_analysis(fd)
+    vol_min, vol_max, vol_tot = volume_analysis_jit(fd)
     vol_end = time.time()
     vol_time = vol_end - start
+
     print(f"Min: {vol_min}, Max: {vol_max}")
     print(f"Total: {vol_tot}")
     print(f"Elapsed time: {vol_time}")
     return vol_min, vol_max, vol_tot
 
-def run_block(args):
-    blocks = run_block_analysis(args.fd, args.tf_x, args.tf_y, args.vol_min, args.vol_max, 
-            args.vol_dims, args.block_dims, args.block_count)
+def run_block(fd,
+        xp: np.ndarray,
+        yp: np.ndarray,
+        vmin: np.float64,
+        vmax: np.float64,
+        vdims: np.ndarray,
+        bdims: np.ndarray,
+        bcount: np.ndarray):
+    """Run the block level analysis and return the relevancies as a list of np.float64
+    """
+    start = time.time()
+    blocks = run_block_analysis(fd, xp, yp, vmin, vmax, vdims, bdims, bcount)
+    volend = time.time()
+    vol_time = volend - start
+    print(f"Elapsed time: {vol_time}")
 
     block_vox_count = np.prod(args.block_dims)
     for i in range(len(blocks)):
@@ -117,37 +129,39 @@ def run_block(args):
 
     return blocks
 
-def createIndexFile(cargs):
-    vol_path, vol_name = os.split(cargs.raw)
-    indexfile = {
-            'version': 1,
-            'vol_name': vol_name,
-            'vol_path': vol_path,
-            'tr_func': cargs.tf,
-            
-            }
+def main():
+    cargs = parse_args(sys.argv[1:])
 
+    fd = np.memmap(cargs.raw, dtype=np.uint8, mode='r')
+    tf_x = np.loadtxt(cargs.tf, dtype=np.float64, usecols=0, skiprows=1)
+    tf_y = np.loadtxt(cargs.tf, dtype=np.float64, usecols=1, skiprows=1)
+    vdims = np.array([cargs.vx, cargs.vy, cargs.vz], dtype=np.uint64)
+    bcount = np.array([cargs.bx, cargs.by, cargs.bz], dtype=np.uint64)
+    bdims = np.divide(vdims, bcount)
+    blocks = np.zeros(cargs.bx * cargs.by * cargs.bz)
 
+    print('Running volume analysis')
+    vol_min, vol_max, vol_tot = run_volume(fd)
 
-cargs = parse_args(sys.argv[1:])
+    print('Running relevance analysis')
+    relevancies = run_block(fd, tf_x, tf_y, vol_min, vol_max, vdims, bdims, bcount)
+    print(f"Elapsed time: {volTime}")
 
-fd = np.memmap(cargs.raw, dtype=np.uint8, mode='r')
-tf_x = np.loadtxt(cargs.tf, dtype=np.float64, usecols=0, skiprows=1)
-tf_y = np.loadtxt(cargs.tf, dtype=np.float64, usecols=1, skiprows=1)
-vdims = np.array([cargs.vx, cargs.vy, cargs.vz], dtype=np.uint64)
-bcount = np.array([cargs.bx, cargs.by, cargs.bz], dtype=np.uint64)
-bdims = np.divide(vdims, bcount)
-blocks = np.zeros(cargs.bx * cargs.by * cargs.bz)
-print('Running volume analysis')
-vol_min, vol_max, vol_tot = run_volume(fd)
-
-print('Running relevance analysis')
-start = time.time()
-run_block_analysis(fd, tf_x, tf_y, vol_min, vol_max, vdims, bdims, bcount, blocks)
-volend = time.time()
-volTime = volend - start
-print(f"Elapsed time: {volTime}")
-
-print("Creating index file")
-
+    print("Creating index file")
+    vol_path, vol_name = os.path.split(cargs.raw)
+    tr_path, tr_name = os.path.split(cargs.tf)
+    vol_stats = volume.VolStats(min=vol_min, max=vol_max, avg=0.0, tot=vol_tot)
+    volume = volume.Volume(vol_name, world_dims, world_origin, path=vol_path)
+    world_dims = np.array((1.0, 1.0, 1.0), dtype=np.float64)
+    world_origin = np.array((0.0, 0.0, 0.0), dtype=np.float64)
+    blocks = create_blocks(relevancies)
+    ifile = IndexFile({
+        'world_dims': world_dims,
+        'world_origin': world_origin,
+        'vol_stats': vol_stats,
+        'volume': volume,
+        'tr_func': tf_name,
+        'dtype': fd.dtype,
+        'blocks': blocks,
+        }
 

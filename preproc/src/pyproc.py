@@ -3,7 +3,7 @@
 import time
 import argparse
 import sys
-
+import os
 import numpy as np
 import numba
 from numba import jit, njit, config, threading_layer
@@ -14,8 +14,8 @@ import indexfile
 
 def parse_args(args):
     parser = argparse.ArgumentParser()
-    parser.add_argument("-f", default="", help="Input file")
-    parser.add_argument("-o", default="", help="Output file")
+    parser.add_argument("--raw", default="", help="Input file")
+    parser.add_argument("--out", default="", help="Output file")
 
     parser.add_argument("--bx", default=1, type=int, help="Blocks along x-dim")
     parser.add_argument("--by", default=1, type=int, help="Blocks along y-dim")
@@ -117,14 +117,21 @@ def run_block(args):
 
     return blocks
 
+def createIndexFile(cargs):
+    vol_path, vol_name = os.split(cargs.raw)
+    indexfile = {
+            'version': 1,
+            'vol_name': vol_name,
+            'vol_path': vol_path,
+            'tr_func': cargs.tf,
+            
+            }
 
-# filename = "/run/media/jim/New Volume/Josh_Kane/hop_flower/Hop_Flower-Resampled-3509x3787x4096.raw"
-# filename = '/run/media/jim/data/volumes/INL/Josh_Kane/hop_flower/9-13-13 CT Volume Hop Flower-512.raw'
-filename = '/run/media/jim/data/volumes/INL/Josh_Kane/hop_flower/Hop_Flower-Resampled-3509x3787x4096.raw'
+
 
 cargs = parse_args(sys.argv[1:])
 
-fd = np.memmap(filename, dtype=np.uint8, mode='r')
+fd = np.memmap(cargs.raw, dtype=np.uint8, mode='r')
 tf_x = np.loadtxt(cargs.tf, dtype=np.float64, usecols=0, skiprows=1)
 tf_y = np.loadtxt(cargs.tf, dtype=np.float64, usecols=1, skiprows=1)
 vdims = np.array([cargs.vx, cargs.vy, cargs.vz], dtype=np.uint64)
@@ -143,8 +150,4 @@ print(f"Elapsed time: {volTime}")
 
 print("Creating index file")
 
-indexfile = {
-        'version': 1,
-        'volname': 
-        }
 

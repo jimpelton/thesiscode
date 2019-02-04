@@ -58,12 +58,12 @@ class FileBlock:
         self.offset = int(kwargs['offset'])
         self.rel = float(kwargs['rel'])
 
-def create_file_blocks(nblocks, vol: Volume, rels) -> List[FileBlock]:
+def create_file_blocks(nblocks, dtype, vol: Volume, rels) -> List[FileBlock]:
     blk_dims_world = np.divide(vol.world_dims, nblocks)
     blk_dims_vox = np.divide(vol.vox_dims, nblocks)
     blk_dims_prod = np.prod(blk_dims_vox)
     blocks = []
-    index = 0
+    vIdx = 0
     for k in range(nblocks[2]):
         for j in range(nblocks[1]):
             for i in range(nblocks[0]):
@@ -79,15 +79,15 @@ def create_file_blocks(nblocks, vol: Volume, rels) -> List[FileBlock]:
                         'dims': blk_dims_world.tolist(),
                         'origin': origin.tolist(),
                         'vox_dims': blk_dims_vox.tolist(),
-                        'index': index,
+                        'index': relIdx,
                         'ijk': ijk.tolist(),
-                        'offset': i + vol.vox_dims[0] * (j + vol.vox_dims[1] * k),
+                        'offset': (i + vol.vox_dims[0] * (j + vol.vox_dims[1] * k)) * dtype.itemsize,
                         'rel': float(rels[relIdx])
                         }
 
                 blocks.append(blk_args)
 
-                index += 1
+                vIdx += 1
 
     return blocks
 

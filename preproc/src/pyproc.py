@@ -4,7 +4,7 @@ import sys
 import os
 import numpy as np
 import numba
-from numba import jit, njit, config, threading_layer
+from numba import jit, njit, autojit, config, threading_layer
 
 import indexfile
 import volume
@@ -24,18 +24,19 @@ def parse_args(args):
     parser.add_argument("--vy", default=1, type=int, help="Vol dims Y")
     parser.add_argument("--vz", default=1, type=int, help="Vol dims Z")
 
+    parser.add_argument("--dtype", default="", type=str)
+
     parser.add_argument("--tf", default='', type=str, help="Transfer function")
 
     return parser.parse_args(args)
 
 
 @njit(fastmath=True)
-def volume_analysis_jit(fd):
+def volume_analysis_jit(fd, num_vox):
     mn = np.iinfo(fd.dtype).max
     mx = -np.iinfo(fd.dtype).min
     acc = numba.float64(0.0)
-    n = len(fd)
-    for i in numba.prange(n):
+    for i in numba.prange(num_vox):
         x = fd[i]
         if x < mn:
             mn = x
@@ -46,6 +47,19 @@ def volume_analysis_jit(fd):
 
     return mn, mx, acc
 
+
+def run_volume(fd, num_vox):
+    start = time.time()
+    vol_min, vol_max, vol_tot = volume_analysis_jit(fd, num_vox)
+    vol_end = time.time()
+    vol_time = vol_end - start
+
+    print(f"Min: {vol_min}, Max: {vol_max}")
+    print(f"Total: {vol_tot}")
+    print(f"Elapsed time: {vol_time}")
+    return vol_min, vol_max, vol_tot
+
+
 @njit(fastmath=True, parallel=True)
 def block_analysis_jit(fd, xp, yp,
                      vmin: np.float64, vmax: np.float64,
@@ -53,25 +67,27 @@ def block_analysis_jit(fd, xp, yp,
                      bcount: np.ndarray,
                      blocks: np.ndarray):
     diff = vmax - vmin
-    num_vox = len(fd)
-
+    num_vox = np.prod(vdims)
+    print(num_vox)
 
     for i in numba.prange(num_vox):
         bI = numba.uint64((i % vdims[0]) / bdims[0])
         bJ = numba.uint64(((i / vdims[0]) % vdims[1]) / bdims[1])
         bK = numba.uint64(((i / vdims[0]) / vdims[1]) / bdims[2])
 
+#        something = bI + bcount[0] * (bJ + bK * bcount[1])
+#        print(something)
+#        print(i)
         if bI < bcount[0] and bJ < bcount[1] and bK < bcount[2]:
             x = numba.float64((fd[i] - vmin) / diff)
-            # rel = interp(n, xp, yp)
 
-            if x <= xp[0]:
-                return yp[0]
+            #if x <= xp[0]:
+            #    return yp[0]
 
             max_idx = len(xp) - 1
 
-            if x >= xp[-1]:
-                return yp[-1]
+            #if x >= xp[-1]:
+            #    return yp[-1]
 
             idx = int((x * max_idx) + 0.5)
 
@@ -92,16 +108,6 @@ def block_analysis_jit(fd, xp, yp,
             blocks[bIdx] += rel
 
 
-def run_volume(fd):
-    start = time.time()
-    vol_min, vol_max, vol_tot = volume_analysis_jit(fd)
-    vol_end = time.time()
-    vol_time = vol_end - start
-
-    print(f"Min: {vol_min}, Max: {vol_max}")
-    print(f"Total: {vol_tot}")
-    print(f"Elapsed time: {vol_time}")
-    return vol_min, vol_max, vol_tot
 
 def run_block(fd,
         xp: np.ndarray,
@@ -130,16 +136,17 @@ def run_block(fd,
 def main():
     cargs = parse_args(sys.argv[1:])
 
-    fd = np.memmap(cargs.raw, dtype=np.uint8, mode='r')
+    data_type = np.dtype(cargs.dtype)
+    fd = np.memmap(cargs.raw, dtype=data_type, mode='r')
+
     tf_x = np.loadtxt(cargs.tf, dtype=np.float64, usecols=0, skiprows=1)
     tf_y = np.loadtxt(cargs.tf, dtype=np.float64, usecols=1, skiprows=1)
     vdims = np.array([cargs.vx, cargs.vy, cargs.vz], dtype=np.uint64)
     bcount = np.array([cargs.bx, cargs.by, cargs.bz], dtype=np.uint64)
     bdims = np.divide(vdims, bcount)
     blocks = np.zeros(cargs.bx * cargs.by * cargs.bz)
-
     print('Running volume analysis')
-    vol_min, vol_max, vol_tot = run_volume(fd)
+    vol_min, vol_max, vol_tot = run_volume(fd, np.prod(vdims))
 
     print('Running relevance analysis')
     relevancies = run_block(fd, tf_x, tf_y, vol_min, vol_max, vdims, bdims, bcount)
@@ -155,7 +162,7 @@ def main():
     vol_stats = volume.VolStats(min=vol_min, max=vol_max, avg=0.0, tot=vol_tot)
     vol = volume.Volume(vol_name, world_dims, world_origin, vdims.tolist(), path=vol_path)
 
-    blocks = indexfile.create_file_blocks(bcount, vol, relevancies)
+    blocks = indexfile.create_file_blocks(bcount, fd.dtype, vol, relevancies)
 
 
 

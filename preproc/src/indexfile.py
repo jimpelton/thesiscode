@@ -60,14 +60,14 @@ class FileBlock:
 
 def create_file_blocks(nblocks, dtype, vol: Volume, rels) -> List[FileBlock]:
     blk_dims_world = np.divide(vol.world_dims, nblocks)
-    blk_dims_vox = np.divide(vol.vox_dims, nblocks)
+    blk_dims_vox = np.array(np.divide(vol.vox_dims, nblocks), dtype=np.uint64)
     blk_dims_prod = np.prod(blk_dims_vox)
     blocks = []
     vIdx = 0
     for k in range(nblocks[2]):
         for j in range(nblocks[1]):
             for i in range(nblocks[0]):
-                ijk = np.array([i,j,k])
+                ijk = np.array([i,j,k], dtype=np.uint64)
 
                 world_loc = np.multiply(vol.world_dims, ijk) - np.multiply(vol.world_dims, 0.5)
 

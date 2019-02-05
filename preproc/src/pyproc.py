@@ -75,9 +75,6 @@ def block_analysis_jit(fd, xp, yp,
         bJ = numba.uint64(((i / vdims[0]) % vdims[1]) / bdims[1])
         bK = numba.uint64(((i / vdims[0]) / vdims[1]) / bdims[2])
 
-#        something = bI + bcount[0] * (bJ + bK * bcount[1])
-#        print(something)
-#        print(i)
         if bI < bcount[0] and bJ < bcount[1] and bK < bcount[2]:
             x = numba.float64((fd[i] - vmin) / diff)
 
@@ -108,7 +105,6 @@ def block_analysis_jit(fd, xp, yp,
             blocks[bIdx] += rel
 
 
-
 def run_block(fd,
         xp: np.ndarray,
         yp: np.ndarray,
@@ -119,7 +115,6 @@ def run_block(fd,
         bcount: np.ndarray):
     """Run the block level analysis and return the relevancies as a list of np.float64
     """
-
     blocks = np.zeros(np.prod(bcount), dtype=np.float64)
     start = time.time()
     block_analysis_jit(fd, xp, yp, vmin, vmax, vdims, bdims, bcount, blocks)
@@ -145,6 +140,7 @@ def main():
     bcount = np.array([cargs.bx, cargs.by, cargs.bz], dtype=np.uint64)
     bdims = np.divide(vdims, bcount)
     blocks = np.zeros(cargs.bx * cargs.by * cargs.bz)
+
     print('Running volume analysis')
     vol_min, vol_max, vol_tot = run_volume(fd, np.prod(vdims))
 
@@ -156,15 +152,13 @@ def main():
     vol_path, vol_name = os.path.split(cargs.raw)
     tr_path, tr_name = os.path.split(cargs.tf)
 
-    world_dims = [1.0, 1.0, 1.0] # np.array((1.0, 1.0, 1.0), dtype=np.float64)
-    world_origin = [0.0, 0.0, 0.0] #np.array((0.0, 0.0, 0.0), dtype=np.float64)
+    world_dims = [1.0, 1.0, 1.0]
+    world_origin = [0.0, 0.0, 0.0]
 
     vol_stats = volume.VolStats(min=vol_min, max=vol_max, avg=0.0, tot=vol_tot)
     vol = volume.Volume(vol_name, world_dims, world_origin, vdims.tolist(), path=vol_path)
 
     blocks = indexfile.create_file_blocks(bcount, fd.dtype, vol, relevancies)
-
-
 
     ifile = indexfile.IndexFile(**{
         'world_dims': world_dims,

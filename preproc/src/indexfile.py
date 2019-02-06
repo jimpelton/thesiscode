@@ -58,36 +58,45 @@ class FileBlock:
         self.offset = int(kwargs['offset'])
         self.rel = float(kwargs['rel'])
 
+def to1D(col, row, slab, maxCols, maxRows):
+    return int(col + maxCols * (row + maxRows * slab))
+
 def create_file_blocks(nblocks, dtype, vol: Volume, rels) -> List[FileBlock]:
     blk_dims_world = np.divide(vol.world_dims, nblocks)
     blk_dims_vox = np.array(np.divide(vol.vox_dims, nblocks), dtype=np.uint64)
-    blk_dims_prod = np.prod(blk_dims_vox)
+
     blocks = []
-    vIdx = 0
+
     for k in range(nblocks[2]):
         for j in range(nblocks[1]):
             for i in range(nblocks[0]):
                 ijk = np.array([i,j,k], dtype=np.uint64)
 
-                world_loc = np.multiply(vol.world_dims, ijk) - np.multiply(vol.world_dims, 0.5)
+                # this blocks location within the volume (world coords)
+                world_loc = blk_dims_world * ijk - 0.5
 
+                # block center in world coords
                 origin = world_loc + (world_loc + blk_dims_world) * 0.5
 
-                start_vox = np.multiply(ijk, blk_dims_prod)
-                relIdx = int(i + nblocks[0] * (j + nblocks[1] * k))
+                blkIdx = to1D(i, j, k, nblocks[0], nblocks[1]) #int(i + nblocks[0] * (j + nblocks[1] * k))
+
+                # block start voxel
+                start_vox = blk_dims_vox * ijk
+                offset = dtype.itemsize * \
+                        to1D(start_vox[0], start_vox[1], start_vox[2], vol.vox_dims[0],
+                                vol.vox_dims[1])
+
                 blk_args = {
                         'dims': blk_dims_world.tolist(),
                         'origin': origin.tolist(),
                         'vox_dims': blk_dims_vox.tolist(),
-                        'index': relIdx,
+                        'index': blkIdx,
                         'ijk': ijk.tolist(),
-                        'offset': (i + vol.vox_dims[0] * (j + vol.vox_dims[1] * k)) * dtype.itemsize,
-                        'rel': float(rels[relIdx])
+                        'offset': offset,
+                        'rel': float(rels[blkIdx])
                         }
 
                 blocks.append(blk_args)
-
-                vIdx += 1
 
     return blocks
 

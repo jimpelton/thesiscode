@@ -152,7 +152,8 @@ def main():
     vol_path, vol_name = os.path.split(cargs.raw)
     tr_path, tr_name = os.path.split(cargs.tf)
 
-    world_dims = [1.0, 1.0, 1.0]
+    max_dim = np.max(vdims)
+    world_dims = [max_dim/vdims[0], max_dim/vdims[1], max_dim/vdims[2]]
     world_origin = [0.0, 0.0, 0.0]
 
     vol_stats = volume.VolStats(min=vol_min, max=vol_max, avg=0.0, tot=vol_tot)

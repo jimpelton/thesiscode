@@ -56,13 +56,14 @@ class FileBlock:
         self.index = kwargs['index']
         self.ijk = tuple(kwargs['ijk'])
         self.offset = int(kwargs['offset'])
+        self.data_bytes = int(kwargs['data_bytes'])
         self.rel = float(kwargs['rel'])
 
 def to1D(col, row, slab, maxCols, maxRows):
     return int(col + maxCols * (row + maxRows * slab))
 
-def create_file_blocks(nblocks, dtype, vol: Volume, rels) -> List[FileBlock]:
-    blk_dims_world = np.divide(vol.world_dims, nblocks)
+def create_file_blocks(nblocks, dtype, vol: Volume, rels):
+    blk_dims_world = vol.world_dims / nblocks
     blk_dims_vox = np.array(np.divide(vol.vox_dims, nblocks), dtype=np.uint64)
 
     blocks = []
@@ -76,15 +77,20 @@ def create_file_blocks(nblocks, dtype, vol: Volume, rels) -> List[FileBlock]:
                 world_loc = blk_dims_world * ijk - 0.5
 
                 # block center in world coords
-                origin = world_loc + (world_loc + blk_dims_world) * 0.5
+                origin = (world_loc + (world_loc + blk_dims_world)) * 0.5
 
-                blkIdx = to1D(i, j, k, nblocks[0], nblocks[1]) #int(i + nblocks[0] * (j + nblocks[1] * k))
+                # this blocks 1D index
+                blkIdx = to1D(i, j, k, nblocks[0], nblocks[1])
 
                 # block start voxel
                 start_vox = blk_dims_vox * ijk
+
+                # byte offset into the file that this block starts at
                 offset = dtype.itemsize * \
                         to1D(start_vox[0], start_vox[1], start_vox[2], vol.vox_dims[0],
                                 vol.vox_dims[1])
+
+                data_bytes = dtype.itemsize * np.prod(blk_dims_vox, dtype=np.uint64)
 
                 blk_args = {
                         'dims': blk_dims_world.tolist(),
@@ -93,6 +99,7 @@ def create_file_blocks(nblocks, dtype, vol: Volume, rels) -> List[FileBlock]:
                         'index': blkIdx,
                         'ijk': ijk.tolist(),
                         'offset': offset,
+                        'data_bytes': int(data_bytes),
                         'rel': float(rels[blkIdx])
                         }
 

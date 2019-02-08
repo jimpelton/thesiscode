@@ -140,12 +140,16 @@ def main():
     bcount = np.array([cargs.bx, cargs.by, cargs.bz], dtype=np.uint64)
     bdims = np.divide(vdims, bcount)
     blocks = np.zeros(cargs.bx * cargs.by * cargs.bz)
+    block_size = vdims / bcount
+    block_extent = block_size * bcount
 
     print('Running volume analysis')
     vol_min, vol_max, vol_tot = run_volume(fd, np.prod(vdims))
 
     print('Running relevance analysis')
     relevancies = run_block(fd, tf_x, tf_y, vol_min, vol_max, vdims, bdims, bcount)
+    rov_min = np.min(relevancies)
+    rov_max = np.max(relevancies)
 
     print("Creating index file")
 
@@ -153,11 +157,11 @@ def main():
     tr_path, tr_name = os.path.split(cargs.tf)
 
     max_dim = np.max(vdims)
-    world_dims = [max_dim/vdims[0], max_dim/vdims[1], max_dim/vdims[2]]
+    world_dims = [vdims[0]/max_dim, vdims[1]/max_dim, vdims[2]/max_dim]
     world_origin = [0.0, 0.0, 0.0]
 
     vol_stats = volume.VolStats(min=vol_min, max=vol_max, avg=0.0, tot=vol_tot)
-    vol = volume.Volume(vol_name, world_dims, world_origin, vdims.tolist(), path=vol_path)
+    vol = volume.Volume(world_dims, world_origin, vdims.tolist(), rov_min, rov_max)
 
     blocks = indexfile.create_file_blocks(bcount, fd.dtype, vol, relevancies)
 
@@ -165,9 +169,13 @@ def main():
         'world_dims': world_dims,
         'world_origin': world_origin,
         'vol_stats': vol_stats,
+        'vol_name': vol_name,
+        'vol_path': vol_path,
         'volume': vol,
         'tr_func': tr_name,
         'dtype': fd.dtype.name,
+        'num_blocks': bcount,
+        'blocks_extent': block_extent,
         'blocks': blocks,
         })
     ifile.write(cargs.out)

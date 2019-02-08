@@ -17,6 +17,7 @@ class IndexFile:
             - vol_path: path to volume
             - tr_func: name of transfer function
             - dtype: data type of the volume data set
+            - num_blocks: blocks in x, y, z axis
             - blocks: a list of dicts that are the blocks
         """
         ifile = {}
@@ -28,10 +29,12 @@ class IndexFile:
 
             ifile = {
                     'version': 1,
-                    'vol_name': vol.name,
-                    'vol_path': vol.path,
+                    'vol_name': kwargs['vol_name'],
+                    'vol_path': kwargs['vol_path'],
                     'tr_func': kwargs['tr_func'],
                     'dtype': kwargs['dtype'],
+                    'num_blocks': kwargs['num_blocks'].tolist(),
+                    'blocks_extent': kwargs['blocks_extent'].tolist(),
                     'volume' : vol.__dict__,
                     'vol_stats': vol_stats.__dict__,
                     'blocks': kwargs['blocks']
